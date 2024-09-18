@@ -1,37 +1,12 @@
-#[derive(Debug, PartialEq)]
-pub enum Token {
-	PtrInc,
-	PtrDec,
-	ValInc,
-	ValDec,
-	GetCh,
-	PutCh,
-	LoopStart,
-	LoopEnd
+const VALID_BF_TOKENS: [char; 8] = ['>', '<', '+', '-', ',', '.', '[', ']'];
+
+pub fn is_valid_bf_token(c: &char) -> bool {
+	VALID_BF_TOKENS.contains(c)
 }
 
-impl TryFrom<char> for Token {
-    type Error = ();
-
-    fn try_from(c: char) -> Result<Self, Self::Error> {
-        match c {
-            '>' => Ok(Token::PtrInc),
-            '<' => Ok(Token::PtrDec),
-            '+' => Ok(Token::ValInc),
-            '-' => Ok(Token::ValDec),
-            ',' => Ok(Token::GetCh),
-            '.' => Ok(Token::PutCh),
-            '[' => Ok(Token::LoopStart),
-            ']' => Ok(Token::LoopEnd),
-            _ => Err(()),
-        }
-    }
+pub fn tokenize(src: &str) -> Vec<char> {
+	src.chars().filter(is_valid_bf_token).collect()
 }
-
-pub fn tokenize(src: &str) -> Vec<Token> {
-	src.chars().filter_map(|ch| ch.try_into().ok()).collect()
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -39,10 +14,8 @@ mod tests {
 
     #[test]
     fn test_tokenize() {
-	    let input = "+>>---<<<<.";
+	    let input = "+a>>b-   -\n-<<<<.";
 		let result = tokenize(input);
-	    assert_eq!(result, vec![Token::ValInc, Token::PtrInc, Token::PtrInc, Token::ValDec,
-	                            Token::ValDec, Token::ValDec, Token::PtrDec, Token::PtrDec,
-	                            Token::PtrDec, Token::PtrDec, Token::PutCh])
+	    assert_eq!(result, vec!['+', '>', '>', '-', '-', '-', '<', '<', '<', '<', '.']);
     }
 }
