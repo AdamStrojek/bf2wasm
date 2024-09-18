@@ -48,8 +48,17 @@ Compiled WASM modules revolve around a few core concepts, what allows to provide
 4. The output will be printed on console
 
 ### Running a WASM module in browser
-1. TODO
+1. Ready to use script is attached to repository `web-runner.js` and `index.html`
+1. Start any webserver: `python3 -m http.server 8080`
+2. Open browser and navigate to http://localhost:8080/
+3. Provide WASM module as parameter in input field and click Start button
 
 ### Running a WASM module in wasmtime
 1. TODO - need to provide import objects
 
+# TODO
+
+[ ] Add support for `getch`
+[ ] Import only required functions from environment
+[ ] Automated tests based on provided examples
+[ ] Zero memory before each execution (who should be responsible for that?)
