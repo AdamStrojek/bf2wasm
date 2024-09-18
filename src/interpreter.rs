@@ -1,4 +1,4 @@
-use std::io::{Write, Read};
+use std::io::{Write};
 use crate::program::{Instruction};
 
 pub struct Interpreter<'a> {

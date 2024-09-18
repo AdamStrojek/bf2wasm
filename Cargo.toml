@@ -1,5 +1,6 @@
 [package]
 name = "bf2wasm"
+description = "A simple Brainfuck to WebAssembly compiler"
 version = "0.1.0"
 edition = "2021"
 
