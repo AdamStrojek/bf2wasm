@@ -152,15 +152,34 @@ impl<'a> Compiler<'a> {
 	}
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//
-//     #[test]
-//     fn test_ptr() {
-// 	    let mut c = Compiler::from_file("examples/ptr.bf");
-// 	    c.compile("examples/ptr.wasm");
-//     }
+#[cfg(test)]
+mod tests {
+    use super::*;
+	use crate::program::Function as ProgFunc;
+	use wasmparser::Parser;
+	use wasmparser::Payload;
+	use anyhow::Result;
+
+	#[test]
+    fn test_ptr() -> Result<()> {
+	    let mut program = Program::new();
+	    let func = ProgFunc::from_file("examples/ptr.bf".into()).unwrap();
+	    program.add_function(func);
+
+	    let mut compiler = Compiler::new(&program);
+
+	    let output_bytes = compiler.compile();
+
+	    let parser = Parser::new(0);
+		for payload in parser.parse_all(&output_bytes) {
+			match payload? {
+				Payload::TypeSection(ts) => { assert_eq!(1, ts.count()); }
+				_ => {},
+			};
+		}
+
+		Ok(())
+    }
 //
 // 	#[test]
 // 	fn test_val() {
@@ -197,4 +216,4 @@ impl<'a> Compiler<'a> {
 // 		let mut c = Compiler::from_file("examples/hello_inner_loop.bf");
 // 		c.compile("examples/hello_inner_loop.wasm");
 // 	}
-// }
+}

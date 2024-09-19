@@ -48,8 +48,6 @@ fn main() {
 
     let output_bytes = compiler.compile();
 
-
-
     let mut file = File::create(output_name).unwrap();
     file.write_all(output_bytes.as_slice()).unwrap();
 }
