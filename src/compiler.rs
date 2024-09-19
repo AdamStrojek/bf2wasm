@@ -1,75 +1,37 @@
 
 use crate::program::{FunctionBody, Instruction as ProgInstr, Program};
 
-use wasm_encoder::{BlockType, CodeSection, EntityType, ExportKind, ExportSection, Function, FunctionSection, ImportSection, Instruction as WasmInstr, MemArg, MemoryType, Module, TypeSection, ValType};
+use wasm_encoder::{BlockType, CodeSection, EntityType, ExportKind, ExportSection, Function,
+                   FunctionSection, ImportSection, Instruction as WasmInstr, MemArg, MemoryType,
+                   Module, TypeSection, ValType};
 
 pub struct Compiler<'a> {
 	pub program: &'a Program,
+
+	types: TypeSection,
+	// memory: MemorySection,
+	imports: ImportSection,
+	functions: FunctionSection,
+	exports: ExportSection,
+	codes: CodeSection,
 }
 
 impl<'a> Compiler<'a> {
 	pub fn new(program: &'a Program) -> Self {
 		Self {
 			program,
+			types: TypeSection::new(),
+			// memory: MemorySection::new(),
+			imports: ImportSection::new(),
+			functions: FunctionSection::new(),
+			exports: ExportSection::new(),
+			codes: CodeSection::new(),
 		}
 	}
 
 	pub fn compile(&mut self) -> Vec<u8> {
-		// (module
-		let mut module = Module::new();
-		let types = self.generate_types();
-		module.section(&types);
 
-		// let mut memory = MemorySection::new();
-		// let memory_local_idx = memory.len();
-		// memory.memory(MemoryType {
-		// 	minimum: 1,
-		// 	maximum: None,
-		// 	memory64: false,
-		// 	shared: false,
-		// 	page_size_log2: None,
-		// });
-
-		self.generate_imports(&mut module);
-
-		//   (type (;{func_type_index};) (func (result i32)))
-		let mut functions = FunctionSection::new();
-		functions.function(1);  //TODO!
-		module.section(&functions);
-
-		//  (export "bf_wasm" (func {func_type_index}))
-		let mut exports = ExportSection::new();
-
-		for (fn_num, function) in self.program.functions.iter().enumerate() {
-			if let FunctionBody::Body(fn_body) = &function.body {
-				exports.export(&function.name, ExportKind::Func, fn_num as u32);
-				module.section(&exports);
-
-				// Encode the code section.
-				let mut codes = CodeSection::new();
-
-				//   (func $bf_wasm
-				//     (local $ptr i32)
-				let mut f = Function::new_with_locals_types([ValType::I32]);
-
-				self.generate_body(&mut f, &fn_body);
-
-				//    )
-				f.instruction(&WasmInstr::LocalGet(0))
-					.instruction(&WasmInstr::Return)
-					.instruction(&WasmInstr::End);
-				codes.function(&f);
-				module.section(&codes);
-			}
-		}
-
-		// Extract the encoded Wasm bytes for this module.
-		module.finish()
-	}
-
-	fn generate_imports(&mut self, module: &mut Module) {
-		let mut imports = ImportSection::new();
-		imports.import(
+		self.imports.import(
 			"env",
 			"memory",
 			MemoryType {
@@ -81,28 +43,55 @@ impl<'a> Compiler<'a> {
 			}
 		);
 
-		for (fn_num, function) in self.program.functions.iter().enumerate() {
-			if function.body == FunctionBody::Import {
-				imports.import(
-					&function.module,
-					&function.name,
-					EntityType::Function(fn_num as u32),
-				);
-			}
+		// self.memory.memory(MemoryType {
+		// 	minimum: 1,
+		// 	maximum: None,
+		// 	memory64: false,
+		// 	shared: false,
+		// 	page_size_log2: None,
+		// });
+
+		for (fn_idx, function) in self.program.functions.iter().enumerate() {
+			let fn_idx = fn_idx as u32;
+			let fn_type_idx = fn_idx;
+
+			self.types.func_type(&function.signature);
+
+			match &function.body {
+				FunctionBody::Import => {
+					self.imports.import(
+						&function.module,
+						&function.name,
+						EntityType::Function(fn_type_idx),
+					);
+				},
+				FunctionBody::Body(fn_body) => {
+					self.functions.function(fn_idx);
+					self.exports.export(&function.name, ExportKind::Func, fn_idx);
+
+					let mut f = Function::new_with_locals_types([ValType::I32]);
+
+					self.generate_body(&mut f, &fn_body);
+
+					f.instruction(&WasmInstr::LocalGet(0))
+						.instruction(&WasmInstr::Return)
+						.instruction(&WasmInstr::End);
+					self.codes.function(&f);
+				}
+			};
 		}
 
-		module.section(&imports);
-	}
+		let mut module = Module::new();
 
-	fn generate_types(&mut self) -> TypeSection {
-		let mut types = TypeSection::new();
+		module.section(&self.types);
+		// module.section(&self.memory);
+		module.section(&self.imports);
+		module.section(&self.functions);
+		module.section(&self.exports);
+		module.section(&self.codes);
 
-		for fun in &self.program.functions {
-			//   (type (###) (func (result i32)))
-			types.func_type(&fun.signature);
-		}
-
-		types
+		// Extract the encoded Wasm bytes for this module.
+		module.finish()
 	}
 
 	fn generate_body(&mut self, f: &mut Function, instructions: &Vec<ProgInstr>) {
