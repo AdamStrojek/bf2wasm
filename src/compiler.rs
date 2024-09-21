@@ -154,66 +154,96 @@ impl<'a> Compiler<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-	use crate::program::Function as ProgFunc;
-	use wasmparser::Parser;
-	use wasmparser::Payload;
+	use std::ops::Range;
+	use std::path::PathBuf;
+	use super::*;
+	use crate::program::{Program, Function as ProgFunc};
+	use wasmer::{Store, Module, Instance, Value, imports, Memory, MemoryType, Function};
 	use anyhow::Result;
 
+	fn compile_from_file(path_buf: PathBuf) -> Vec<u8> {
+		let mut program = Program::new();
+		let func = ProgFunc::from_file(path_buf).unwrap();
+		program.add_function(func);
+		let mut compiler = Compiler::new(&program);
+		compiler.compile()
+	}
+
+	fn run_wasm(wasm: &Vec<u8>, fn_name: &str, mem_view_range: Range<u64>) -> Result<(Vec<u8>, Box<[Value]>)> {
+		let mut store = Store::default();
+		let module = Module::new(&store, &wasm)?;
+
+		let memory = Memory::new(&mut store, MemoryType::new(1, None, false))?;
+		let import_object = imports! {
+		    "env" => {
+		         "putch" => Function::new_typed(&mut store, |x: i32| println!("Putch: {}", x)),
+		         "memory" => memory.clone(),
+		    }
+		};
+
+		let instance = Instance::new(&mut store, &module, &import_object).unwrap();
+
+		let wasm_fn = instance.exports.get_function(fn_name).unwrap();
+		let result = wasm_fn.call(&mut store, &[])?;
+
+		let core_dump = memory.view(&store).copy_range_to_vec(mem_view_range)?;
+
+		Ok((core_dump, result))
+	}
+
 	#[test]
-    fn test_ptr() -> Result<()> {
-	    let mut program = Program::new();
-	    let func = ProgFunc::from_file("examples/ptr.bf".into()).unwrap();
-	    program.add_function(func);
+    fn test_ptr() {
+		let wasm = compile_from_file("examples/ptr.bf".into());
+		let (_, result) = run_wasm(&wasm, "ptr", 0..10).unwrap();
 
-	    let mut compiler = Compiler::new(&program);
-
-	    let output_bytes = compiler.compile();
-
-	    let parser = Parser::new(0);
-		for payload in parser.parse_all(&output_bytes) {
-			match payload? {
-				Payload::TypeSection(ts) => { assert_eq!(1, ts.count()); }
-				_ => {},
-			};
-		}
-
-		Ok(())
+		assert_eq!(*result, [Value::I32(16)]);
     }
-//
-// 	#[test]
-// 	fn test_val() {
-// 		let mut c = Compiler::from_file("examples/val.bf");
-// 		c.compile("examples/val.wasm");
-// 	}
-//
-// 	#[test]
-// 	fn test_ptr_val() {
-// 		let mut c = Compiler::from_file("examples/ptr_val.bf");
-// 		c.compile("examples/ptr_val.wasm");
-// 	}
-//
-// 	#[test]
-// 	fn test_loop() {
-// 		let mut c = Compiler::from_file("examples/loop.bf");
-// 		c.compile("examples/loop.wasm");
-// 	}
-//
-// 	#[test]
-// 	fn test_loop_inner() {
-// 		let mut c = Compiler::from_file("examples/loop_inner.bf");
-// 		c.compile("examples/loop_inner.wasm");
-// 	}
-//
-// 	#[test]
-// 	fn test_hello() {
-// 		let mut c = Compiler::from_file("examples/hello.bf");
-// 		c.compile("examples/hello.wasm");
-// 	}
-//
-// 	#[test]
-// 	fn test_hello_inner() {
-// 		let mut c = Compiler::from_file("examples/hello_inner_loop.bf");
-// 		c.compile("examples/hello_inner_loop.wasm");
-// 	}
+
+	#[test]
+	fn test_val() {
+		let wasm = compile_from_file("examples/val.bf".into());
+		let (mem, result) = run_wasm(&wasm, "val", 0..10).unwrap();
+
+		assert_eq!(*result, [Value::I32(0)]);
+		assert_eq!(mem, [5, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+	}
+
+	#[test]
+	fn test_ptr_val() {
+		let wasm = compile_from_file("examples/ptr_val.bf".into());
+		let (mem, result) = run_wasm(&wasm, "ptr_val", 0..10).unwrap();
+
+		assert_eq!(*result, [Value::I32(4)]);
+		assert_eq!(mem, [1, 2, 3, 4, 1, 0, 0, 0, 0, 0]);
+	}
+
+	#[test]
+	fn test_loop() {
+		let wasm = compile_from_file("examples/loop.bf".into());
+		let (mem, result) = run_wasm(&wasm, "loop", 0..10).unwrap();
+
+		assert_eq!(*result, [Value::I32(0)]);
+		assert_eq!(mem, [0, 2, 3, 0, 0, 0, 0, 0, 0, 0]);
+	}
+
+	#[test]
+	fn test_loop_inner() {
+		let wasm = compile_from_file("examples/loop_inner.bf".into());
+		let (mem, result) = run_wasm(&wasm, "loop_inner", 0..10).unwrap();
+
+		assert_eq!(*result, [Value::I32(0)]);
+		assert_eq!(mem, [0, 0, 1, 2, 3, 4, 0, 0, 0, 0]);
+	}
+
+	// #[test]
+	// fn test_hello() {
+	// 	let mut c = Compiler::from_file("examples/hello.bf");
+	// 	c.compile("examples/hello.wasm");
+	// }
+	//
+	// #[test]
+	// fn test_hello_inner() {
+	// 	let mut c = Compiler::from_file("examples/hello_inner_loop.bf");
+	// 	c.compile("examples/hello_inner_loop.wasm");
+	// }
 }

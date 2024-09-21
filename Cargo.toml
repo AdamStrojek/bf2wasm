@@ -10,4 +10,4 @@ wasm-encoder = "0.216.0"
 
 [dev-dependencies]
 anyhow = "1.0.89"
-wasmparser = "0.217.0"
+wasmer = { version = "4.3.7" }
